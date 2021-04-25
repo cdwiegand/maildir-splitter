@@ -7,12 +7,14 @@ RUN dotnet build maildir-splitter.csproj -c Release -o /app
 FROM mcr.microsoft.com/dotnet/runtime:3.1 AS final
 WORKDIR /app
 COPY --from=build /app .
-RUN touch /app/log.log
-RUN echo "tail -f /app/log.log" >> /entrypoint.sh; chmod a+rx /entrypoint.sh
 
 # install cron
 RUN apt-get update && apt-get install -y cron && apt-get clean && rm -rf /var/lib/apt/lists/*
 # create crontab entry
 RUN (crontab -l -u root; echo "*/5 * * * * dotnet /app/maildir-splitter.dll") | crontab
+
+# clean up and setup entrypoint
+RUN touch /app/log.log
+RUN echo "service cron start" > /entrypoint.sh && "tail -f /app/log.log" >> /entrypoint.sh && chmod a+rx /entrypoint.sh
 
 ENTRYPOINT /entrypoint.sh
