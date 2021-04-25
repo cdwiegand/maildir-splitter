@@ -15,6 +15,8 @@ RUN (crontab -l -u root; echo "*/5 * * * * dotnet /app/maildir-splitter.dll") | 
 
 # clean up and setup entrypoint
 RUN touch /app/log.log
-RUN echo "service cron start" > /entrypoint.sh && "tail -f /app/log.log" >> /entrypoint.sh && chmod a+rx /entrypoint.sh
+RUN echo "service cron start" > /entrypoint.sh && \
+    echo "tail -f /app/log.log" >> /entrypoint.sh && \
+    chmod a+rx /entrypoint.sh
 
 ENTRYPOINT /entrypoint.sh
