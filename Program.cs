@@ -34,6 +34,8 @@ namespace maildir_splitter
         {
             // maildir
             string maildir = Environment.GetEnvironmentVariable("MAILDIR") ?? GetArgIfPresent(args, "-maildir:");
+            if (string.IsNullOrEmpty(maildir) && System.IO.Directory.Exists("/maildir"))
+                maildir = "/maildir"; // default, if it exists
 
             // folder(s) on which to operate
             string folder = Environment.GetEnvironmentVariable("MAILFOLDERS") ?? GetArgIfPresent(args, "-folders:") ?? "cur,new"; // my defaults
