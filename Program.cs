@@ -64,11 +64,13 @@ namespace maildir_splitter
                     ProcessFile(maildir, EnsurePathFullyRooted(System.Environment.CurrentDirectory, files[i]), newDir => EnsureDirectoryExists(newDir), i, files.Length);
             }
             else
-                foreach (string folderName in folder.Split(','))
-                    ProcessFolder(maildir, folderName.Trim(), useFind);
-
-            if (sleepSeconds > 0)
-                System.Threading.Thread.Sleep(sleepSeconds * 1000); // I hate crontab in Docker, not reliable...
+                do
+                {
+                    foreach (string folderName in folder.Split(','))
+                        ProcessFolder(maildir, folderName.Trim(), useFind);
+                    System.Threading.Thread.Sleep(sleepSeconds * 1000); // I hate crontab in Docker, not reliable...
+                }
+                while (sleepSeconds > 0);
         }
         static void ProcessFolder(string maildir, string folderName, bool useFind)
         {
