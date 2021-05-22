@@ -39,7 +39,7 @@ namespace maildir_splitter
             string folder = Environment.GetEnvironmentVariable("MAILFOLDERS") ?? GetArgIfPresent(args, "-folders:") ?? "cur,new"; // my defaults
 
             string file = GetArgIfPresent(args, "-file:");
-
+            string index = GetArgIfPresent(args, "-index:"); // lets you cheat and use result of `find -type f .` in your cur or new folder
             bool useFind = GetIfArgPresent(args, "-find");
 
             // test config
@@ -54,6 +54,12 @@ namespace maildir_splitter
                     ProcessFile(maildir, EnsurePathFullyRooted(System.Environment.CurrentDirectory, file), newDir => EnsureDirectoryExists(newDir), 1, 1);
                 else
                     throw new Exception("Invalid file specified: " + file);
+            }
+            else if (!string.IsNullOrEmpty(index))
+            {
+                string[] files = System.IO.File.ReadAllLines(index);
+                for (int i = 0; i < files.Length; i++)
+                    ProcessFile(maildir, EnsurePathFullyRooted(System.Environment.CurrentDirectory, files[i]), newDir => EnsureDirectoryExists(newDir), i, files.Length);
             }
             else
                 foreach (string folderName in folder.Split(','))
