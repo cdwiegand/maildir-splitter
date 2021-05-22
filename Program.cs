@@ -42,6 +42,8 @@ namespace maildir_splitter
             string index = GetArgIfPresent(args, "-index:"); // lets you cheat and use result of `find -type f .` in your cur or new folder
             bool useFind = GetIfArgPresent(args, "-find");
 
+            int sleepSeconds = int.TryParse( GetArgIfPresent(args, "-sleep:"), out int testVal1) && testVal1 > 0 ? testVal1 : 0;
+
             // test config
             if (string.IsNullOrEmpty(maildir)) throw new Exception("No MAILDIR env variable found, no argument to program - aborting!");
             if (!System.IO.Directory.Exists(maildir)) throw new Exception("Maildir path invalid!");
@@ -64,6 +66,9 @@ namespace maildir_splitter
             else
                 foreach (string folderName in folder.Split(','))
                     ProcessFolder(maildir, folderName.Trim(), useFind);
+
+            if (sleepSeconds > 0)
+                System.Threading.Thread.Sleep(sleepSeconds * 1000); // I hate crontab in Docker, not reliable...
         }
         static void ProcessFolder(string maildir, string folderName, bool useFind)
         {
