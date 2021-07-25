@@ -45,6 +45,7 @@ namespace maildir_splitter
             bool useFind = GetIfArgPresent(args, "-find");
 
             int sleepSeconds = int.TryParse( GetArgIfPresent(args, "-sleep:"), out int testVal1) && testVal1 > 0 ? testVal1 : 0;
+            int maxRuns = int.TryParse( GetArgIfPresent(args, "-runs:"), out int testVal2) && testVal2 > 0 ? testVal2 : int.MaxValue;
 
             // test config
             if (string.IsNullOrEmpty(maildir)) throw new Exception("No MAILDIR env variable found, no argument to program - aborting!");
@@ -71,8 +72,9 @@ namespace maildir_splitter
                     foreach (string folderName in folder.Split(','))
                         ProcessFolder(maildir, folderName.Trim(), useFind);
                     System.Threading.Thread.Sleep(sleepSeconds * 1000); // I hate crontab in Docker, not reliable...
+                    maxRuns--;
                 }
-                while (sleepSeconds > 0);
+                while (sleepSeconds > 0 && maxRuns > 0);
         }
         static void ProcessFolder(string maildir, string folderName, bool useFind)
         {
