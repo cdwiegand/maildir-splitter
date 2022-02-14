@@ -145,7 +145,8 @@ namespace maildir_splitter
                     }
                 }
                 string monthFixed = (theDate.Month < 10 ? "0" : "") + theDate.Month.ToString();
-                string newDir = System.IO.Path.Combine(maildir, theDate.Year.ToString(), monthFixed);
+                string dayFixed = (theDate.Day < 10 ? "0" : "") + theDate.Day.ToString();
+                string newDir = System.IO.Path.Combine(maildir, theDate.Year.ToString(), monthFixed, dayFixed);
                 string newFile = System.IO.Path.Combine(newDir, System.IO.Path.GetFileName(fullPathFixed));
                 PreMove?.Invoke(newDir);
                 System.IO.File.Move(fullPathFixed, newFile);
