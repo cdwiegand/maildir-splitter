@@ -44,8 +44,8 @@ namespace maildir_splitter
             string index = GetArgIfPresent(args, "-index:"); // lets you cheat and use result of `find -type f .` in your cur or new folder
             bool useFind = GetIfArgPresent(args, "-find");
 
-            int sleepSeconds = int.TryParse( GetArgIfPresent(args, "-sleep:"), out int testVal1) && testVal1 > 0 ? testVal1 : 0;
-            int maxRuns = int.TryParse( GetArgIfPresent(args, "-runs:"), out int testVal2) && testVal2 > 0 ? testVal2 : int.MaxValue;
+            int sleepSeconds = int.TryParse(Environment.GetEnvironmentVariable("SLEEP") ?? GetArgIfPresent(args, "-sleep:"), out int testVal1) && testVal1 > 0 ? testVal1 : 0;
+            int maxRuns = int.TryParse(Environment.GetEnvironmentVariable("MAXRUNS") ?? GetArgIfPresent(args, "-runs:"), out int testVal2) && testVal2 > 0 ? testVal2 : int.MaxValue;
 
             // test config
             if (string.IsNullOrEmpty(maildir)) throw new Exception("No MAILDIR env variable found, no argument to program - aborting!");
