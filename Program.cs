@@ -16,47 +16,23 @@ namespace maildir_splitter
                 System.IO.File.AppendAllText("log.log", s + "\n");
             }
         }
-        static string GetArgIfPresent(string[] args, string prefixedOptionWithColon)
-        {
-            string found = null;
-            if (args != null && args.Length > 0)
-            {
-                string testVal = args.FirstOrDefault(p => p.StartsWith(prefixedOptionWithColon));
-                if (!string.IsNullOrEmpty(testVal)) found = testVal.Substring(prefixedOptionWithColon.Length);
-            }
-            return found;
-        }
-        static bool GetIfArgPresent(string[] args, string option)
-        {
-            return args != null && args.Length > 0 && args.Contains(option);
-        }
         static void Main(string[] args)
         {
-            // maildir
-            string maildir = Environment.GetEnvironmentVariable("MAILDIR") ?? GetArgIfPresent(args, "-maildir:");
-            if (string.IsNullOrEmpty(maildir) && System.IO.Directory.Exists("/maildir"))
-                maildir = "/maildir"; // default, if it exists
-
-            // folder(s) on which to operate
-            string folder = Environment.GetEnvironmentVariable("MAILFOLDERS") ?? GetArgIfPresent(args, "-folders:") ?? "cur,new"; // my defaults
-
-            string file = GetArgIfPresent(args, "-file:");
-            string index = GetArgIfPresent(args, "-index:"); // lets you cheat and use result of `find -type f .` in your cur or new folder
-            bool useFind = GetIfArgPresent(args, "-find");
-
-            int sleepSeconds = int.TryParse(Environment.GetEnvironmentVariable("SLEEP") ?? GetArgIfPresent(args, "-sleep:"), out int testVal1) && testVal1 > 0 ? testVal1 : 0;
-            int maxRuns = int.TryParse(Environment.GetEnvironmentVariable("MAXRUNS") ?? GetArgIfPresent(args, "-runs:"), out int testVal2) && testVal2 > 0 ? testVal2 : int.MaxValue;
+            State state = new State(args);
 
             // test config
-            if (string.IsNullOrEmpty(maildir)) throw new Exception("No MAILDIR env variable found, no argument to program - aborting!");
-            if (!System.IO.Directory.Exists(maildir)) throw new Exception("Maildir path invalid!");
-            else Log($"Using Maildir: {maildir}");
+            if (string.IsNullOrEmpty(state.maildir)) throw new Exception("No MAILDIR env variable found, no argument to program - aborting!");
+            if (!System.IO.Directory.Exists(state.maildir)) throw new Exception("Maildir path invalid!");
+            else Log($"Using Maildir: {state.maildir}");
 
             // special case: give me a single file, and I'll process as if it's in a subdir of a MAILDIR (./cur/somethinghere.12345 -> ./2019/11/somethinghere.12345 or somethinghere.12345 -> ../2019/11/somethinghere.12345)
-            if (!string.IsNullOrEmpty(file))
+            if (!string.IsNullOrEmpty(state.file))
             {
-                if (System.IO.File.Exists(file))
-                    ProcessFile(maildir, EnsurePathFullyRooted(System.Environment.CurrentDirectory, file), newDir => EnsureDirectoryExists(newDir), 1, 1);
+                if (System.IO.File.Exists(state.file))
+                    ProcessFile(state, EnsurePathFullyRooted(System.Environment.CurrentDirectory, state.file), newDir => {
+                        EnsureDirectoryExists(newDir);
+                        state.AddDedupeDir(newDir);
+                    }, 1, 1);
                 else
                     throw new Exception("Invalid file specified: " + file);
             }
@@ -64,31 +40,45 @@ namespace maildir_splitter
             {
                 string[] files = System.IO.File.ReadAllLines(index);
                 for (int i = 0; i < files.Length; i++)
-                    ProcessFile(maildir, EnsurePathFullyRooted(System.Environment.CurrentDirectory, files[i]), newDir => EnsureDirectoryExists(newDir), i, files.Length);
+                    ProcessFile(state, EnsurePathFullyRooted(System.Environment.CurrentDirectory, files[i]), newDir => {
+                        EnsureDirectoryExists(newDir);
+                        state.AddDedupeDir(newDir);
+                    }, i, files.Length);
             }
             else
                 do
                 {
                     foreach (string folderName in folder.Split(','))
-                        ProcessFolder(maildir, folderName.Trim(), useFind);
+                        ProcessFolder(state, folderName.Trim());
                     System.Threading.Thread.Sleep(sleepSeconds * 1000); // I hate crontab in Docker, not reliable...
                     maxRuns--;
                 }
                 while (sleepSeconds > 0 && maxRuns > 0);
+
+            if (state.runFdupes) {
+                foreach (string dir in state.dedupeDirs) {                    
+                    Process.Start(new ProcessStartInfo
+                    {
+                        WorkingDirectory = System.IO.Path.Combine(state.maildir, folderName),
+                        FileName = "fdupes",
+                        Arguments = "-dNr " + dir
+                    }).WaitForExit();
+                }
+            }
         }
-        static void ProcessFolder(string maildir, string folderName, bool useFind)
+        static void ProcessFolder(State state, string folderName)
         {
-            string folderPath = System.IO.Path.Combine(maildir, folderName);
+            string folderPath = System.IO.Path.Combine(state.maildir, folderName);
             if (!System.IO.Directory.Exists(folderPath)) throw new Exception($"Folder effective path {folderPath} invalid!");
             else Log($"Scanning folder {folderPath} for files...");
 
             string[] files;
             //// cheat file of known files - useful if you have 1m+ files!
-            if (useFind)
+            if (state.useFind)
             {
                 ProcessStartInfo psi = new ProcessStartInfo
                 {
-                    WorkingDirectory = System.IO.Path.Combine(maildir, folderName),
+                    WorkingDirectory = System.IO.Path.Combine(state.maildir, folderName),
                     FileName = "find",
                     Arguments = "-type f",
                     RedirectStandardOutput = true
@@ -101,12 +91,17 @@ namespace maildir_splitter
             else
                 files = System.IO.Directory.GetFiles(folderPath);
 
-
             for (int i = 0; i < files.Length; i++)
-                ProcessFile(maildir, EnsurePathFullyRooted(folderPath, files[i]), newDir => EnsureDirectoryExists(newDir), i, files.Length);
+                ProcessFile(state, EnsurePathFullyRooted(folderPath, files[i]), 
+                    newDir => {
+                        EnsureDirectoryExists(newDir);
+                        state.AddDedupeDir(newDir);
+                    },
+                    i, files.Length);            
         }
 
         static List<string> StaticCreatedDirectories = new List<string>();
+        
         static void EnsureDirectoryExists(string newDir)
         {
             // cache of subdirs we've created, so we can run quickly
@@ -116,13 +111,15 @@ namespace maildir_splitter
                 StaticCreatedDirectories.Add(newDir);
             }
         }
+
         static string EnsurePathFullyRooted(string folderPath, string file)
         {
             if (!System.IO.Path.IsPathRooted(file))
                 file = System.IO.Path.Combine(folderPath, file); // prepend working dir path to this "just file name"
             return file;
         }
-        static void ProcessFile(string maildir, string filePath, Action<string> PreMove, int i, int filesLength)
+
+        static void ProcessFile(State state, string filePath, Action<string> PreMove, int i, int filesLength)
         {
             string logPrefix = $"{i + 1}/{filesLength}: ";
             try
@@ -146,7 +143,7 @@ namespace maildir_splitter
                 }
                 string monthFixed = (theDate.Month < 10 ? "0" : "") + theDate.Month.ToString();
                 string dayFixed = (theDate.Day < 10 ? "0" : "") + theDate.Day.ToString();
-                string newDir = System.IO.Path.Combine(maildir, theDate.Year.ToString(), monthFixed, dayFixed);
+                string newDir = System.IO.Path.Combine(state.maildir, theDate.Year.ToString(), monthFixed, dayFixed);
                 string newFile = System.IO.Path.Combine(newDir, System.IO.Path.GetFileName(fullPathFixed));
                 PreMove?.Invoke(newDir);
                 System.IO.File.Move(fullPathFixed, newFile);
