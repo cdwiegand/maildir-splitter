@@ -29,18 +29,20 @@ namespace maildir_splitter
             if (!string.IsNullOrEmpty(state.file))
             {
                 if (System.IO.File.Exists(state.file))
-                    ProcessFile(state, EnsurePathFullyRooted(System.Environment.CurrentDirectory, state.file), newDir => {
+                    ProcessFile(state, EnsurePathFullyRooted(System.Environment.CurrentDirectory, state.file), newDir =>
+                    {
                         EnsureDirectoryExists(newDir);
                         state.AddDedupeDir(newDir);
                     }, 1, 1);
                 else
-                    throw new Exception("Invalid file specified: " + file);
+                    throw new Exception("Invalid file specified: " + state.file);
             }
-            else if (!string.IsNullOrEmpty(index))
+            else if (!string.IsNullOrEmpty(state.index))
             {
-                string[] files = System.IO.File.ReadAllLines(index);
+                string[] files = System.IO.File.ReadAllLines(state.index);
                 for (int i = 0; i < files.Length; i++)
-                    ProcessFile(state, EnsurePathFullyRooted(System.Environment.CurrentDirectory, files[i]), newDir => {
+                    ProcessFile(state, EnsurePathFullyRooted(System.Environment.CurrentDirectory, files[i]), newDir =>
+                    {
                         EnsureDirectoryExists(newDir);
                         state.AddDedupeDir(newDir);
                     }, i, files.Length);
@@ -48,18 +50,19 @@ namespace maildir_splitter
             else
                 do
                 {
-                    foreach (string folderName in folder.Split(','))
+                    foreach (string folderName in state.folder.Split(','))
                         ProcessFolder(state, folderName.Trim());
-                    System.Threading.Thread.Sleep(sleepSeconds * 1000); // I hate crontab in Docker, not reliable...
-                    maxRuns--;
+                    System.Threading.Thread.Sleep(state.sleepSeconds * 1000); // I hate crontab in Docker, not reliable...
+                    state.maxRuns--;
                 }
-                while (sleepSeconds > 0 && maxRuns > 0);
+                while (state.sleepSeconds > 0 && state.maxRuns > 0);
 
-            if (state.runFdupes) {
-                foreach (string dir in state.dedupeDirs) {                    
+            if (state.runFdupes)
+            {
+                foreach (string dir in state.dedupeDirs)
+                {
                     Process.Start(new ProcessStartInfo
                     {
-                        WorkingDirectory = System.IO.Path.Combine(state.maildir, folderName),
                         FileName = "fdupes",
                         Arguments = "-dNr " + dir
                     }).WaitForExit();
@@ -92,16 +95,17 @@ namespace maildir_splitter
                 files = System.IO.Directory.GetFiles(folderPath);
 
             for (int i = 0; i < files.Length; i++)
-                ProcessFile(state, EnsurePathFullyRooted(folderPath, files[i]), 
-                    newDir => {
+                ProcessFile(state, EnsurePathFullyRooted(folderPath, files[i]),
+                    newDir =>
+                    {
                         EnsureDirectoryExists(newDir);
                         state.AddDedupeDir(newDir);
                     },
-                    i, files.Length);            
+                    i, files.Length);
         }
 
         static List<string> StaticCreatedDirectories = new List<string>();
-        
+
         static void EnsureDirectoryExists(string newDir)
         {
             // cache of subdirs we've created, so we can run quickly
